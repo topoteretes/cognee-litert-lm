@@ -1,0 +1,3 @@
+[submodule "vendor/LiteRT-LM"]
+	path = vendor/LiteRT-LM
+	url = https://github.com/topoteretes/LiteRT-LM.git

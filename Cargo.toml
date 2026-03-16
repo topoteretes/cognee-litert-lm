@@ -1,0 +1,21 @@
+[package]
+name = "cognee-litert-lm"
+version = "0.1.0"
+edition = "2021"
+description = "Rust bindings for the LiteRT-LM C++ inference engine"
+license = "Apache-2.0"
+repository = "https://github.com/topoteretes/cognee-litert-lm"
+readme = "README.md"
+
+[lib]
+name = "cognee_litert_lm"
+
+[features]
+# Build the C++ library from source via CMake. Requires all C++ dependencies.
+build-from-source = ["cmake"]
+
+[build-dependencies]
+bindgen = "0.71"
+cmake = { version = "0.1", optional = true }
+
+[dev-dependencies]
