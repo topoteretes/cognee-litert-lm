@@ -25,6 +25,8 @@ pub enum Error {
     ConversationConfigCreationFailed,
     /// Benchmark info retrieval failed.
     BenchmarkInfoFailed,
+    /// Optional args creation failed.
+    OptionalArgsCreationFailed,
 }
 
 impl fmt::Display for Error {
@@ -51,6 +53,9 @@ impl fmt::Display for Error {
                 write!(f, "failed to create conversation config")
             }
             Error::BenchmarkInfoFailed => write!(f, "failed to retrieve benchmark info"),
+            Error::OptionalArgsCreationFailed => {
+                write!(f, "failed to create optional args")
+            }
         }
     }
 }

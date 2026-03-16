@@ -35,7 +35,9 @@ mod session;
 pub(crate) type StreamCallbackBox = Box<dyn FnMut(&str, bool, Option<&str>) + Send>;
 
 // Re-export the public API at the crate root.
-pub use conversation::{Conversation, ConversationConfig, JsonResponse};
+pub use conversation::{
+    ConstraintType, Conversation, ConversationConfig, JsonResponse, OptionalArgs,
+};
 pub use engine::{Backend, Engine, EngineSettings};
 pub use error::{Error, Result};
 pub use session::{
