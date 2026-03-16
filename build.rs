@@ -8,11 +8,20 @@ fn main() {
     // --- Step 1: Build and link the C++ library ---
     #[cfg(feature = "build-from-source")]
     {
-        let dst = cmake::Config::new(&vendor_dir)
-            .define("CMAKE_BUILD_TYPE", "Release")
-            .build();
+        let mut cmake_cfg = cmake::Config::new(&vendor_dir);
+        cmake_cfg.define("CMAKE_BUILD_TYPE", "Release");
 
+        if cfg!(feature = "async-constraint-masking") {
+            cmake_cfg.cflag("-DLITERT_LM_ASYNC_CONSTRAINT_MASKING");
+            cmake_cfg.cxxflag("-DLITERT_LM_ASYNC_CONSTRAINT_MASKING");
+        }
+
+        let dst = cmake_cfg.build();
         println!("cargo:rustc-link-search=native={}/lib", dst.display());
+    }
+
+    if cfg!(feature = "async-constraint-masking") {
+        println!("cargo:rustc-cfg=async_constraint_masking");
     }
 
     // Allow overriding the library search path via environment variable.
@@ -37,7 +46,8 @@ fn main() {
     // --- Step 2: Generate Rust FFI bindings from the C header ---
     let c_header = vendor_dir.join("c").join("engine.h");
 
-    let bindings = bindgen::Builder::default()
+    let target = env::var("TARGET").unwrap_or_default();
+    let mut builder = bindgen::Builder::default()
         .header(c_header.to_str().unwrap())
         .allowlist_function("litert_lm_.*")
         .allowlist_type("LiteRtLm.*")
@@ -45,9 +55,24 @@ fn main() {
         .allowlist_type("Type")
         .allowlist_var("kType.*|kInput.*|kTopK|kTopP|kGreedy")
         .derive_debug(true)
-        .derive_default(true)
-        .generate()
-        .expect("Unable to generate bindings");
+        .derive_default(true);
+
+    // When cross-compiling for Android, point clang at the NDK sysroot.
+    if target.contains("android") {
+        let ndk_home = env::var("ANDROID_NDK_HOME")
+            .or_else(|_| env::var("ANDROID_NDK"))
+            .or_else(|_| env::var("NDK_HOME"))
+            .expect(
+                "Cross-compiling for Android requires ANDROID_NDK_HOME, \
+                 ANDROID_NDK, or NDK_HOME to be set",
+            );
+        let sysroot = format!("{ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/sysroot");
+        builder = builder
+            .clang_arg(format!("--sysroot={sysroot}"))
+            .clang_arg(format!("--target={target}"));
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
