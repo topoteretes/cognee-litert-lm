@@ -21,4 +21,12 @@ async-constraint-masking = []
 bindgen = "0.71"
 cmake = { version = "0.1", optional = true }
 
+[dependencies]
+clap = { version = "4", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+
 [dev-dependencies]
+
+[[example]]
+name = "simple_chat"
+required-features = ["clap", "serde_json"]

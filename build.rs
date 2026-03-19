@@ -31,16 +31,29 @@ fn main() {
     }
 
     // Link the LiteRT-LM C library.
-    // Use LITERT_LM_LINK_TYPE to choose static (default) or dylib.
-    let link_type = env::var("LITERT_LM_LINK_TYPE").unwrap_or_else(|_| "static".to_string());
-    println!("cargo:rustc-link-lib={link_type}=litert_lm");
+    // Default to dylib (shared library built by Bazel via //c:liblitert_lm_c.so).
+    // Override with LITERT_LM_LINK_TYPE=static for static linking.
+    let link_type = env::var("LITERT_LM_LINK_TYPE").unwrap_or_else(|_| "dylib".to_string());
+    println!("cargo:rustc-link-lib={link_type}=litert_lm_c");
 
-    // Also link C++ standard library.
+    // When linking statically, we also need the C++ standard library and
+    // platform-specific dependencies.
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    match target_os.as_str() {
-        "linux" | "android" => println!("cargo:rustc-link-lib=dylib=stdc++"),
-        "macos" | "ios" => println!("cargo:rustc-link-lib=dylib=c++"),
-        _ => {}
+    if link_type == "static" {
+        match target_os.as_str() {
+            "linux" => println!("cargo:rustc-link-lib=dylib=stdc++"),
+            "android" => {
+                println!("cargo:rustc-link-lib=static=c++_static");
+                println!("cargo:rustc-link-lib=static=c++abi");
+            }
+            "macos" | "ios" => println!("cargo:rustc-link-lib=dylib=c++"),
+            _ => {}
+        }
+    }
+
+    // Android needs the log library and RPATH setup for shared libs.
+    if target_os == "android" {
+        println!("cargo:rustc-link-lib=dylib=log");
     }
 
     // --- Step 2: Generate Rust FFI bindings from the C header ---
