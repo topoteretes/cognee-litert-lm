@@ -126,12 +126,16 @@ fn ndk_sysroot(ndk_home: &str) -> PathBuf {
         return expected;
     }
 
-    // Fallback: the NDK contains exactly one prebuilt/<tag> dir — use it.
+    // Fallback: the NDK ships exactly one prebuilt/<tag> dir — use it. Sort the
+    // entries first so selection stays deterministic (read_dir order is not) in
+    // the pathological case of a stale/second prebuilt dir alongside the real one.
     if let Ok(entries) = std::fs::read_dir(&prebuilt) {
-        for entry in entries.flatten() {
-            let candidate = entry.path().join("sysroot");
-            if candidate.is_dir() {
-                return candidate;
+        let mut candidates: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
+        candidates.sort();
+        for dir in candidates {
+            let sysroot = dir.join("sysroot");
+            if sysroot.is_dir() {
+                return sysroot;
             }
         }
     }
