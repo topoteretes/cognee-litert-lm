@@ -79,9 +79,9 @@ fn main() {
                 "Cross-compiling for Android requires ANDROID_NDK_HOME, \
                  ANDROID_NDK, or NDK_HOME to be set",
             );
-        let sysroot = format!("{ndk_home}/toolchains/llvm/prebuilt/linux-x86_64/sysroot");
+        let sysroot = ndk_sysroot(&ndk_home);
         builder = builder
-            .clang_arg(format!("--sysroot={sysroot}"))
+            .clang_arg(format!("--sysroot={}", sysroot.display()))
             .clang_arg(format!("--target={target}"));
     }
 
@@ -98,4 +98,51 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/LiteRT-LM/CMakeLists.txt");
     println!("cargo:rerun-if-env-changed=LITERT_LM_LIB_DIR");
     println!("cargo:rerun-if-env-changed=LITERT_LM_LINK_TYPE");
+}
+
+/// Resolve the NDK `sysroot` for the *build host*.
+///
+/// The NDK ships its LLVM toolchain under a host-specific prebuilt dir
+/// (`linux-x86_64`, `darwin-x86_64`, `windows-x86_64` — note macOS has no
+/// arm64 build, so Apple Silicon runs the x86_64 toolchain under Rosetta).
+/// We pick the tag from the host OS this build script runs on, then fall back
+/// to whatever single `prebuilt/<tag>` directory exists so a future NDK naming
+/// tweak doesn't break the build.
+fn ndk_sysroot(ndk_home: &str) -> PathBuf {
+    let prebuilt = PathBuf::from(ndk_home)
+        .join("toolchains")
+        .join("llvm")
+        .join("prebuilt");
+
+    let host_tag = match env::consts::OS {
+        "linux" => "linux-x86_64",
+        "macos" => "darwin-x86_64",
+        "windows" => "windows-x86_64",
+        other => panic!("unsupported build host OS '{other}' for Android NDK cross-compile"),
+    };
+
+    let expected = prebuilt.join(host_tag).join("sysroot");
+    if expected.is_dir() {
+        return expected;
+    }
+
+    // Fallback: the NDK ships exactly one prebuilt/<tag> dir — use it. Sort the
+    // entries first so selection stays deterministic (read_dir order is not) in
+    // the pathological case of a stale/second prebuilt dir alongside the real one.
+    if let Ok(entries) = std::fs::read_dir(&prebuilt) {
+        let mut candidates: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
+        candidates.sort();
+        for dir in candidates {
+            let sysroot = dir.join("sysroot");
+            if sysroot.is_dir() {
+                return sysroot;
+            }
+        }
+    }
+
+    panic!(
+        "no NDK sysroot found under {} (expected host tag '{host_tag}'); \
+         is ANDROID_NDK_HOME pointing at a valid NDK?",
+        prebuilt.display()
+    );
 }
