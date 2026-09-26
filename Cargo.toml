@@ -30,3 +30,7 @@ serde_json = { version = "1", optional = true }
 [[example]]
 name = "simple_chat"
 required-features = ["clap", "serde_json"]
+
+[[example]]
+name = "intent_classify"
+required-features = ["clap", "serde_json"]

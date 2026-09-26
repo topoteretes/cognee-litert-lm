@@ -8,11 +8,27 @@ SONAME is not needed for dlopen-by-name usage.
 """
 import os, struct, shutil, sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SO_IN  = os.path.join(_REPO_ROOT, 'vendor/LiteRT-LM/prebuilt/android_arm64/libLiteRtTopKOpenClSampler.so')
+_PREBUILT = os.path.join(_REPO_ROOT, 'vendor/LiteRT-LM/prebuilt/android_arm64')
+# Both GPU samplers need this: they carry the same 160 undefined LiteRt* symbols
+# and the same GLOB_DAT relocations, so whichever one the runtime dlopens has to
+# pull in liblitert_lm_c.so to resolve them. Which one that is depends on the
+# delegate LiteRT picks -- an Android *app* process cannot reach OpenCL
+# (libvndksupport.so is not in the NDK public library list) and lands on WebGPU,
+# while a /data/local/tmp binary has no such restriction and gets OpenCL.
+# Pass a path to patch a specific file; the default is the OpenCL sampler.
+SO_IN  = sys.argv[1] if len(sys.argv) > 1 else os.path.join(_PREBUILT, 'libLiteRtTopKOpenClSampler.so')
 SO_OUT = SO_IN  # patch in-place (original is in git)
 NEW_DEP = b'liblitert_lm_c.so\x00'
 
-shutil.copy2(SO_IN, SO_OUT)
+# In-place is the normal case (SO_OUT == SO_IN); copy2 refuses that outright.
+# Keep a .orig alongside instead, so the unpatched prebuilt is recoverable --
+# these binaries are not rebuildable without a multi-hour Bazel run.
+if os.path.abspath(SO_IN) != os.path.abspath(SO_OUT):
+    shutil.copy2(SO_IN, SO_OUT)
+_backup = SO_IN + '.orig'
+if not os.path.exists(_backup):
+    shutil.copy2(SO_IN, _backup)
+    print(f"Kept the unpatched original at {_backup}")
 data = bytearray(open(SO_OUT, 'rb').read())
 
 # Idempotency check: skip if already patched
